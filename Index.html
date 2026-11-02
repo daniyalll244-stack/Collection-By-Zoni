@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collection by Zoni</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f8f6f1;color:#292d28;font-family:Arial,sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+header{padding:20px 6%;display:flex;justify-content:space-between;align-items:center;background:#283d35;color:white;gap:12px;flex-wrap:wrap}
+.brand{font-family:Georgia,serif;font-size:27px}.brand small{display:block;font:10px Arial;letter-spacing:3px;margin-top:6px}
+nav{display:flex;gap:9px;flex-wrap:wrap}button{border:0;padding:11px 15px;border-radius:4px}
+.btn{background:#283d35;color:white}.light{background:#eadfd2;color:#292d28}.outline{background:transparent;border:1px solid currentColor;color:inherit}
+.hero{padding:65px 7%;background:#eadfd2}.hero h1{font:clamp(38px,6vw,65px) Georgia;margin:10px 0}.hero p{line-height:1.7;max-width:480px}
+main{padding:35px 6%}.filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.filters button{background:#eee8df}.filters button.active{background:#283d35;color:white}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.card{background:white;padding:10px;min-width:0}.card img{width:100%;aspect-ratio:4/5;object-fit:cover;background:#eee}.card h3{margin:12px 0 5px;font:20px Georgia}.muted{color:#777;font-size:13px}.price{font-weight:bold;margin:10px 0}.old{text-decoration:line-through;color:#999;font-weight:normal;margin-left:8px}
+.sold{opacity:.55}.panel{background:white;padding:20px;margin:18px 0;border:1px solid #e5e2dc;border-radius:5px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ccc;border-radius:4px;background:white;margin:5px 0 12px}
+label{font-size:13px;font-weight:bold}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hidden{display:none!important}.adminnav{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:13px}td,th{text-align:left;padding:12px;border-bottom:1px solid #ddd}
+.tablewrap{overflow:auto}.message{padding:12px;background:#eee8df;margin:12px 0;border-radius:4px}
+footer{background:#283d35;color:white;padding:35px 6%;margin-top:35px}
+.modal{position:fixed;inset:0;background:#0009;display:grid;place-items:center;padding:15px;z-index:5}
+.modalbox{background:white;color:#292d28;padding:22px;width:min(520px,100%);max-height:90vh;overflow:auto;border-radius:6px}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.formgrid{grid-template-columns:1fr}.hero{padding:42px 6%}.brand{font-size:23px}main{padding:25px 4%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Collection by Zoni<small>LITTLE LOOKS, LOVELY MOMENTS</small></div>
+  <nav>
+    <button class="light" onclick="showStore()">Shop</button>
+    <button class="outline" onclick="showLogin()">Owner login</button>
+  </nav>
+</header>
+
+<section class="hero" id="hero">
+  <p>THOUGHTFUL STYLE FOR LITTLE EVERYDAYS</p>
+  <h1>Made for their kind of wonderful.</h1>
+  <p>Explore lovely outfits for growing personalities. Find something special for every little moment.</p>
+  <button class="btn" onclick="document.getElementById('shop').scrollIntoView({behavior:'smooth'})">Explore collection</button>
+</section>
+
+<main id="store">
+  <section id="shop">
+    <h2>Shop the collection</h2>
+    <div class="filters">
+      <button class="active" onclick="filterProducts('All',this)">All</button>
+      <button onclick="filterProducts('Girls',this)">Girls</button>
+      <button onclick="filterProducts('Boys',this)">Boys</button>
+      <button onclick="filterProducts('Unisex',this)">Unisex</button>
+      <button onclick="filterProducts('Sale',this)">Sale</button>
+    </div>
+    <div id="productGrid" class="grid">Loading products...</div>
+  </section>
+</main>
+
+<section id="admin" class="hidden" style="padding:25px 6%">
+  <h1>Owner dashboard</h1>
+  <p class="muted" id="ownerEmail"></p>
+  <div class="adminnav">
+    <button class="btn" onclick="adminPage('products')">Products</button>
+    <button class="btn" onclick="adminPage('orders')">Orders</button>
+    <button class="btn" onclick="adminPage('deals')">Deals</button>
+    <button class="light" onclick="logout()">Log out</button>
+  </div>
+  <div id="adminContent"></div>
+</section>
+
+<footer>
+  <h2>Collection by Zoni</h2>
+  <p>Little looks, lovely moments.</p>
+  <p>For orders and enquiries, contact our store team.</p>
+</footer>
+
+<div id="modal" class="hidden"></div>
+<div id="notice"></div>
+
+<script>
+/* ADD YOUR SUPABASE PROJECT DETAILS BELOW */
+const SUPABASE_URL = "https://wiqtslttxgwmoxmhccdq.supabase.co/";
+const SUPABASE_KEY = "sb_publishable_AHQ1W33vQF_5k4IVQccoGw_8oLbUSPG";
+
+/* Do not put a service-role or secret key here. */
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let products = [];
+let deals = [];
+let cart = [];
+let category = "All";
+let editingId = null;
+
+function msg(t){
+  const n=document.getElementById("notice");
+  n.className="message";
+  n.textContent=t;
+  n.style.position="fixed";
+  n.style.bottom="12px";
+  n.style.left="12px";
+  n.style.right="12px";
+  n.style.zIndex="10";
+  setTimeout(()=>{n.textContent="";n.className="";},3500);
+}
+function money(n){return "Rs. "+Number(n||0).toLocaleString("en-PK")}
+function safe(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+async function loadProducts(){
+  const {data,error}=await db.from("products").select("*").order("created_at",{ascending:false});
+  if(error){document.getElementById("productGrid").textContent="Could not load products. Please check the database policies.";console.error(error);return}
+  products=data||[];
+  renderProducts();
+}
+
+function renderProducts(){
+  const list=products.filter(p=>{
+    if(category==="All")return true;
+    if(category==="Sale")return p.on_sale;
+    return p.category===category;
+  });
+  const grid=document.getElementById("productGrid");
+  if(!list.length){grid.innerHTML='<p class="muted">No products available in this category yet.</p>';return}
+  grid.innerHTML=list.map(p=>`
+    <article class="card ${p.available?"":"sold"}">
+      ${p.image?`<img src="${safe(p.image)}" alt="${safe(p.name)}">`:'<div style="aspect-ratio:4/5;background:#eee"></div>'}
+      <h3>${safe(p.name)}</h3>
+      <p class="muted">${safe(p.category)} · Sizes: ${safe(p.sizes||"Please enquire")}</p>
+      <div class="price">${money(p.price)}${p.old_price?`<span class="old">${money(p.old_price)}</span>`:""}</div>
+      <button class="btn" ${p.available?"":"disabled"} onclick="addCart('${p.id}')">${p.available?"Add to bag":"Sold out"}</button>
+    </article>`).join("");
+}
+
+function filterProducts(c,b){
+  category=c;
+  document.querySelectorAll(".filters button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  renderProducts();
+}
+function addCart(id){
+  const p=products.find(x=>String(x.id)===String(id));
+  if(!p||!p.available)return;
+  cart.push(id);
+  msg("Added to your bag. Items: "+cart.length);
+  showCart();
+}
+function showCart(){
+  if(!cart.length){msg("Your bag is empty.");return}
+  const items=cart.map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+  const total=items.reduce((s,p)=>s+Number(p.price),0);
+  document.getElementById("modal").className="modal";
+  document.getElementById("modal").innerHTML=`
+  <div class="modalbox">
+    <h2>Your bag</h2>
+    ${items.map((p,i)=>`<p>${safe(p.name)} — ${money(p.price)}
+      <label>Size
+      <select id="size${i}"><option value="">Choose size</option>${String(p.sizes||"").split(",").map(s=>`<option>${safe(s.trim())}</option>`).join("")}</select>
+      </label></p>`).join("")}
+    <h3>Total: ${money(total)}</h3>
+    <label>Your name</label><input id="customerName" placeholder="Full name">
+    <label>Phone / WhatsApp</label><input id="customerPhone" placeholder="03xx xxxxxxx">
+    <label>Delivery address</label><textarea id="customerAddress" placeholder="House, street, city"></textarea>
+    <label>Additional notes</label><textarea id="customerNotes" placeholder="Any delivery instructions?"></textarea>
+    <button class="btn" onclick="placeOrder()">Place order</button>
+    <button class="light" onclick="closeModal()">Continue shopping</button>
+  </div>`;
+}
+function closeModal(){document.getElementById("modal").className="hidden";document.getElementById("modal").innerHTML=""}
+
+async function placeOrder(){
+  const name=document.getElementById("customerName").value.trim();
+  const phone=document.getElementById("customerPhone").value.trim();
+  const address=document.getElementById("customerAddress").value.trim();
+  const notes=document.getElementById("customerNotes").value.trim();
+  if(!name||!phone||!address){msg("Please enter your name, phone and address.");return}
+  const items=cart.map((id,i)=>{
+    const p=products.find(x=>String(x.id)===String(id));
+    return {product_id:p.id,selected_size:document.getElementById("size"+i).value,quantity:1};
+  });
+  if(items.some(x=>!x.selected_size)){msg("Please choose a size for every item.");return}
+  const button=document.querySelector(".modalbox .btn");
+  button.disabled=true;button.textContent="Submitting...";
+  try{
+    const response=await fetch(SUPABASE_URL+"/functions/v1/create-order",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},
+      body:JSON.stringify({customer_name:name,phone,delivery_address:address,notes,items})
+    });
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||"Order could not be submitted");
+    cart=[];
+    closeModal();
+    msg("Your order has been submitted. Thank you!");
+  }catch(e){
+    button.disabled=false;button.textContent="Place order";
+    msg(e.message+" — please try again later.");
+  }
+}
+
+/* OWNER LOGIN */
+function showLogin(){
+  document.getElementById("modal").className="modal";
+  document.getElementById("modal").innerHTML=`
+  <div class="modalbox">
+    <h2>Owner login</h2>
+    <label>Email</label><input id="loginEmail" type="email" placeholder="Owner email">
+    <label>Password</label><input id="loginPassword" type="password" placeholder="Password">
+    <button class="btn" onclick="login()">Log in</button>
+    <button class="light" onclick="closeModal()">Cancel</button>
+  </div>`;
+}
+async function login(){
+  const email=document.getElementById("loginEmail").value.trim();
+  const password=document.getElementById("loginPassword").value;
+  const {data,error}=await db.auth.signInWithPassword({email,password});
+  if(error){msg(error.message);return}
+  const {data:owner,error:ownerError}=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
+  if(ownerError||!owner){
+    await db.auth.signOut();
+    msg("This account is not authorised as the store owner.");
+    return;
+  }
+  closeModal();
+  document.getElementById("store").classList.add("hidden");
+  document.getElementById("hero").classList.add("hidden");
+  document.getElementById("admin").classList.remove("hidden");
+  document.getElementById("ownerEmail").textContent=email;
+  adminPage("products");
+}
+async function logout(){
+  await db.auth.signOut();
+  document.getElementById("admin").classList.add("hidden");
+  document.getElementById("store").classList.remove("hidden");
+  document.getElementById("hero").classList.remove("hidden");
+  showStore();
+}
+function showStore(){
+  document.getElementById("admin").classList.add("hidden");
+  document.getElementById("store").classList.remove("hidden");
+  document.getElementById("hero").classList.remove("hidden");
+}
+function adminPage(page){
+  if(page==="products")showAdminProducts();
+  if(page==="orders")showAdminOrders();
+  if(page==="deals")showAdminDeals();
+}
+
+/* PRODUCT MANAGEMENT */
+async function showAdminProducts(){
+  const {data,error}=await db.from("products").select("*").order("created_at",{ascending:false});
+  if(error){msg(error.message);return}
+  products=data||[];
+  document.getElementById("adminContent").innerHTML=`
+  <div class="panel"><h2>Products</h2><button class="btn" onclick="productForm()">Add product</button>
+  <div class="tablewrap"><table><tr><th>Name</th><th>Price</th><th>Availability</th><th>Actions</th></tr>
+  ${products.map(p=>`<tr><td>${safe(p.name)}</td><td>${money(p.price)}</td><td>${p.available?"Available":"Sold out"}</td>
+  <td><button onclick="productForm('${p.id}')">Edit</button><button onclick="removeProduct('${p.id}')">Delete</button></td></tr>`).join("")}
+  </table></div></div>`;
+}
+async function productForm(id=null){
+  const p=id?products.find(x=>String(x.id)===String(id)):null;
+  editingId=id;
+  document.getElementById("adminContent").innerHTML=`
+  <div class="panel"><h2>${p?"Edit":"Add"} product</h2>
+  <label>Product name</label><input id="pName" value="${safe(p?.name||"")}">
+  <div class="formgrid">
+    <div><label>Category</label><select id="pCategory">${["Girls","Boys","Unisex"].map(c=>`<option ${p?.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
+    <div><label>Price (PKR)</label><input id="pPrice" type="number" value="${p?.price||""}"></div>
+    <div><label>Old price (optional)</label><input id="pOld" type="number" value="${p?.old_price||""}"></div>
+    <div><label>Sizes (comma separated)</label><input id="pSizes" value="${safe(p?.sizes||"")}" placeholder="2-3, 3-4, 4-5"></div>
+  </div>
+  <label>Description</label><textarea id="pDescription">${safe(p?.description||"")}</textarea>
+  <label>Product photo</label><input id="pImage" type="file" accept="image/*">
+  ${p?.image?`<img src="${safe(p.image)}" style="width:100px">`:""}
+  <label><input id="pAvailable" type="checkbox" style="width:auto" ${p?.available!==false?"checked":""}> Available</label>
+  <label><input id="pSale" type="checkbox" style="width:auto" ${p?.on_sale?"checked":""}> On sale</label><br><br>
+  <button class="btn" onclick="saveProduct()">Save product</button>
+  <button class="light" onclick="showAdminProducts()">Cancel</button></div>`;
+}
+async function saveProduct(){
+  const name=document.getElementById("pName").value.trim();
+  const price=Number(document.getElementById("pPrice").value);
+  if(!name||price<=0){msg("Enter a product name and valid price.");return}
+  let image=editingId?products.find(p=>String(p.id)===String(editingId))?.image||null:null;
+  const file=document.getElementById("pImage").files[0];
+  if(file){
+    const ext=file.name.split(".").pop().toLowerCase();
+    const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;
+    const {error:uploadError}=await db.storage.from("product-images").upload(path,file,{upsert:false});
+    if(uploadError){msg("Photo upload failed: "+uploadError.message);return}
+    const {data}=db.storage.from("product-images").getPublicUrl(path);
+    image=data.publicUrl;
+  }
+  const record={
+    name,category:document.getElementById("pCategory").value,
+    price,old_price:Number(document.getElementById("pOld").value)||null,
+    sizes:document.getElementById("pSizes").value.trim(),
+    description:document.getElementById("pDescription").value.trim(),
+    image,available:document.getElementById("pAvailable").checked,
+    on_sale:document.getElementById("pSale").checked
+  };
+  const result=editingId
+    ?await db.from("products").update(record).eq("id",editingId)
+    :await db.from("products").insert(record);
+  if(result.error){msg(result.error.message);return}
+  msg("Product saved.");
+  await showAdminProducts();await loadProducts();
+}
+async function removeProduct(id){
+  if(!confirm("Delete this product?"))return;
+  const {error}=await db.from("products").delete().eq("id",id);
+  if(error){msg(error.message);return}
+  msg("Product deleted.");await showAdminProducts();await loadProducts();
+}
+
+/* DEALS */
+async function showAdminDeals(){
+  const {data,error}=await db.from("deals").select("*").order("created_at",{ascending:false});
+  if(error){msg(error.message);return}
+  deals=data||[];
+  document.getElementById("adminContent").innerHTML=`
+  <div class="panel"><h2>Deals and offers</h2>
+  <label>Offer title</label><input id="dTitle" placeholder="Weekend offer">
+  <label>Discount code</label><input id="dCode" placeholder="WELCOME10">
+  <label>Details</label><input id="dDetails" placeholder="Offer details">
+  <button class="btn" onclick="addDeal()">Create deal</button>
+  ${deals.map(d=>`<p>${safe(d.title)} — ${safe(d.discount_code)} — ${d.active?"Active":"Paused"}
+  <button onclick="toggleDeal('${d.id}',${!d.active})">${d.active?"Pause":"Activate"}</button>
+  <button onclick="deleteDeal('${d.id}')">Delete</button></p>`).join("")}</div>`;
+}
+async function addDeal(){
+  const title=document.getElementById("dTitle").value.trim();
+  const code=document.getElementById("dCode").value.trim();
+  const details=document.getElementById("dDetails").value.trim();
+  if(!title||!code){msg("Enter a title and discount code.");return}
+  const {error}=await db.from("deals").insert({title,discount_code:code,details,active:true});
+  if(error){msg(error.message);return}
+  showAdminDeals();msg("Deal created.");
+}
+async function toggleDeal(id,active){
+  const {error}=await db.from("deals").update({active}).eq("id",id);
+  if(error){msg(error.message);return}showAdminDeals();
+}
+async function deleteDeal(id){
+  if(!confirm("Delete this deal?"))return;
+  const {error}=await db.from("deals").delete().eq("id",id);
+  if(error){msg(error.message);return}showAdminDeals();
+}
+
+/* ORDER MANAGEMENT */
+async function showAdminOrders(){
+  const {data,error}=await db.from("orders").select("*,order_items(*)").order("created_at",{ascending:false});
+  if(error){msg(error.message);return}
+  document.getElementById("adminContent").innerHTML=`
+  <div class="panel"><h2>Customer orders</h2><div class="tablewrap"><table>
+  <tr><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Details</th></tr>
+  ${(data||[]).map(o=>`<tr><td>${safe(o.customer_name)}</td><td>${safe(o.phone)}</td><td>${money(o.total)}</td>
+  <td><select onchange="updateOrder('${o.id}','payment_status',this.value)">${["Unpaid","Paid"].map(s=>`<option ${o.payment_status===s?"selected":""}>${s}</option>`).join("")}</select></td>
+  <td><select onchange="updateOrder('${o.id}','status',this.value)">${["Pending","Processing","Shipped","Delivered","Cancelled"].map(s=>`<option ${o.status===s?"selected":""}>${s}</option>`).join("")}</select></td>
+  <td><button onclick="alert(${JSON.stringify("Address: "+o.delivery_address+"\\nNotes: "+(o.notes||""))})">View</button></td></tr>`).join("")}
+  </table></div></div>`;
+}
+async function updateOrder(id,column,value){
+  const {error}=await db.from("orders").update({[column]:value}).eq("id",id);
+  if(error){msg(error.message);return}msg("Order updated.");
+}
+
+loadProducts();
+</script>
+</body>
+</html>
